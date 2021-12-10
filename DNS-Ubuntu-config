@@ -27,10 +27,3 @@ PING uk.www.bbc.co.uk.pri.bbc.co.uk (212.58.233.254): 56 data bytes
 to check:
 https://www.juniper.net/documentation/us/en/software/junos/junos-getting-started/topics/example/router-name-domain-name-ip-address-system-id-configuring.html
 //configuring unique device's identity in the network-ntp
-
-
-USM user encryption password: workbook
-VACM security model: usm
-VACM user:           lab
-VACM security level: privacy
-VACM read view OID: .1
