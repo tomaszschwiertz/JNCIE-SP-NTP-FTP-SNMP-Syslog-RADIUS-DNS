@@ -1,0 +1,76 @@
+//Syslog server
+https://www.howtoforge.com/how-to-setup-rsyslog-server-on-ubuntu-1804/
+
+//Install Rsyslog
+apt-get install rsyslog -y
+
+root@base:~# rsyslogd -v
+rsyslogd 8.32.0, compiled with:
+        PLATFORM:                               x86_64-pc-linux-gnu
+        PLATFORM (lsb_release -d):
+        FEATURE_REGEXP:                         Yes
+        GSSAPI Kerberos 5 support:              Yes
+        FEATURE_DEBUG (debug build, slow code): No
+        32bit Atomic operations supported:      Yes
+        64bit Atomic operations supported:      Yes
+        memory allocator:                       system default
+        Runtime Instrumentation (slow code):    No
+        uuid support:                           Yes
+        systemd support:                        Yes
+        Number of Bits in RainerScript integers: 64
+
+See http://www.rsyslog.com for more information.
+
+
+root@base:~# systemctl status rsyslog
+● rsyslog.service - System Logging Service
+   Loaded: loaded (/lib/systemd/system/rsyslog.service; enabled; vendor preset: enabled)
+   Active: active (running) since Wed 2021-12-01 00:57:23 UTC; 3 days ago
+     Docs: man:rsyslogd(8)
+           http://www.rsyslog.com/doc/
+ Main PID: 623 (rsyslogd)
+    Tasks: 4 (limit: 2322)
+   CGroup: /system.slice/rsyslog.service
+           └─623 /usr/sbin/rsyslogd -n
+
+
+Configure Rsyslog Server
+nano /etc/rsyslog.conf
+
+//To use both UDP and TCP connections at the same time search and uncomment the lines below:
+# provides UDP syslog reception
+module(load="imudp")
+input(type="imudp" port="514")
+
+# provides TCP syslog reception
+module(load="imtcp")
+input(type="imtcp" port="514")
+
+
+//restart syslog
+systemctl restart rsyslog
+
+//verify that Rsyslog is listening on TCP/UDP
+root@base:~# netstat -4altunp | grep 514
+tcp        0      0 0.0.0.0:514             0.0.0.0:*               LISTEN      28715/rsyslogd
+udp        0      0 0.0.0.0:514             0.0.0.0:*                           28715/rsyslogd
+
+//check the configuration of Syslog:
+cat /etc/rsyslog.d/50-default.conf
+
+//check yslog messages on the server under:
+root@base:~# cat /var/log/syslog
+
+//verify your work:
+cat /etc/rsyslog.d/50-default.conf
+...
+Dec  4 22:02:28 CE1 mgd[37813]: UI_CFG_AUDIT_SET: User 'root' set: [system syslog user noc any] <unconfigured> -> "warning"
+Dec  4 22:02:44 CE1 mgd[37813]: UI_CFG_AUDIT_SET: User 'root' set: [system syslog user ops any] <unconfigured> -> "emergency"
+...
+Dec  4 22:11:51 CE1 mgd[37813]: UI_CMDLINE_READ_LINE: User 'root', command 'show system syslog | display set '
+Dec  4 22:12:17 CE1 mgd[37813]: UI_CMDLINE_READ_LINE: User 'root', command 'show | compare '
+Dec  4 22:15:50 CE1 mgd[37813]: UI_CFG_AUDIT_SET: User 'root' set: [system syslog archive size] "100000 -> "100K"
+Dec  4 22:15:50 CE1 mgd[37813]: UI_CMDLINE_READ_LINE: User 'root', command 'set system syslog archive size 100K '
+Dec  4 22:15:53 CE1 mgd[37813]: UI_CMDLINE_READ_LINE: User 'root', command 'commit '
+...
+Dec  4 22:15:59 CE1 mgd[37813]: UI_CMDLINE_READ_LINE: User 'root', command 'show system syslog | display set '
