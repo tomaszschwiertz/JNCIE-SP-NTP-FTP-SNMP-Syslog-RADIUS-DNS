@@ -1,0 +1,164 @@
+//FTP server
+https://linuxconfig.org/how-to-setup-ftp-server-on-ubuntu-18-04-bionic-beaver-with-vsftpd
+
+//install VSFTPD deamon
+sudo apt-get install vsftpd
+
+//let’ make a backup of a current FSFTPD server configuration file
+mv /etc/vsftpd.conf /etc/vsftpd.conf_orig
+
+Create a new VSFTPD configuration file /etc/vsftpd.conf using your favorite text editor
+nano /etc/vsftpd.conf
+
+//insert the above FTP configuration lines into /etc/vsftpd.conf file
+listen=NO
+listen_ipv6=YES
+anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+local_umask=022
+dirmessage_enable=YES
+use_localtime=YES
+xferlog_enable=YES
+connect_from_port_20=YES
+chroot_local_user=YES
+secure_chroot_dir=/var/run/vsftpd/empty
+pam_service_name=vsftpd
+rsa_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+rsa_private_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+ssl_enable=NO
+pasv_enable=Yes
+pasv_min_port=10000
+pasv_max_port=10100
+allow_writeable_chroot=YES
+
+//In case you have UFW firewall enabled, execute the bellow command to allow incoming traffic to FTP ports:
+$ sudo ufw allow from any to any port 20,21,10000:10100 proto tcp //not dne in our example
+
+//Restart VSFTPD server to apply new changes
+sudo service vsftpd restart
+
+//Create FTP user
+//At this stage we are ready to create a FTP user. The following lines will create a new system account *lab* and pwd *lab123*:
+root@base:~# sudo useradd -m lab
+root@base:~# sudo passwd lab
+Enter new UNIX password:
+Retype new UNIX password:
+passwd: password updated successfully
+
+
+//For testing purposes create some arbitrary file within lab‘s home directory. Once we login we should be able to see and edit this file:
+sudo bash -c "echo FTP TESTING > /home/lab/FTP-TEST"
+
+root@base:/# cd home
+root@base:/home# ls -li
+total 8
+1841811 drwxr-xr-x 2 lab     lab     4096 Dec  9 01:19 lab
+1195410 drwxr-xr-x 6 labuser labuser 4096 Aug 26 00:12 labuser
+root@base:/home# cd lab
+root@base:/home/lab# ls -li
+total 0
+root@base:/home/lab# sudo bash -c "echo FTP TESTING > /home/lab/FTP-TEST"
+root@base:/home/lab# ls -li
+total 4
+1841815 -rw-r--r-- 1 root root 12 Dec  9 01:21 FTP-TEST
+root@base:/home/lab#
+
+
+//other topic - add SFTP
+https://linuxconfig.org/how-to-setup-sftp-server-on-ubuntu-18-04-bionic-beaver-with-vsftpd
+
+//let's test (from the Ubuntu server itself)
+root@base:/home/lab# ftp 41.60.225.168
+Connected to 41.60.225.168.
+220 (vsFTPd 3.0.3)
+Name (41.60.225.168:labuser): lab
+331 Please specify the password.
+Password:                                *lab123*
+230 Login successful.
+Remote system type is UNIX.
+Using binary mode to transfer files.
+ftp> ls -li
+200 PORT command successful. Consider using PASV.
+150 Here comes the directory listing.
+-rw-r--r--    1 0        0              12 Dec 09 01:21 FTP-TEST
+226 Directory send OK.
+ftp>
+
+
+
+...///...
+//use help to see how you should configure archival functionality via FTP
+ops@CE1> help apropos archival
+...
+help reference system archival
+    Copy active configuration to archive site
+
+ops@CE1> show system configuration archival
+
+/var/transfer/config/:
+total blocks: 16
+total files: 0
+
+ops@CE1> help reference system archival
+archival
+
+  Syntax
+
+     archival {
+         configuration {
+             archive-sites {
+                 file://<path>/<filename>;
+                 ftp://username@host:<port>url-path password password;
+                 http://username@host:<port>url-path password password;
+                 pasvftp://username@host:<port>url-path password password;
+                 scp://username@host:<port>url-path password password;
+             }
+             transfer-interval interval;
+             transfer-on-commit;
+         }
+     }
+
+
+
+set system archival configuration archive-sites ftp://lab@41.60.225.168: password lab123
+//this will work as well
+set system archival configuration archive-sites ftp://lab@41.60.225.168 password lab123
+
+
+//best would be:
+set system archival configuration archive-sites ftp://lab@41.60.225.168:/home/lab/CE1 password lab123
+//on the FTP server - you might need to create a folder "CE1" and assign permissions
+
+
+//on the FTP server, to make it avaliable to store the files under /CE1 directory, add the following:
+//create the directory
+root@base:/home/lab# mkdir CE1
+
+//grant read, write and execute permissions to everyone
+root@base:/home/lab# chmod 777 CE1
+
+root@base:/home/lab# ls -li
+total 56
+ 398691 drwxr-xrwx 2 root root 4096 Dec 10 00:07 CE1
+
+//set the owner to "lab" and group ownership also to "lab"
+root@base:/home/lab# chown lab:lab CE1
+root@base:/home/lab# ls -li
+total 56
+ 398691 drwxrwxrwx 2 lab  lab  4096 Dec 10 00:07 CE1
+
+//now Junos routers should be able to save theor config files inside their respective directories
+
+
+//verify on the server
+root@base:/home/lab# ls -li
+total 52
+1841816 -rw-r--r-- 1 lab  lab  1971 Dec  9 01:49 CE1_20211209_014546_juniper.conf.gz
+1841817 -rw-r--r-- 1 lab  lab  1971 Dec  9 01:49 CE1_20211209_014557_juniper.conf.gz
+
+//unzip the compressed file
+gzip -d CE1_20211209_014557_juniper.conf.gz
+
+check this:
+https://rtodto.net/archiving-junos-configurations/
