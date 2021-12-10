@@ -1,0 +1,29 @@
+//DNS config
+https://serverspace.io/support/help/configure-bind9-dns-server-on-ubuntu/
+
+//update the package list and install BIND9
+sudo apt update
+sudo apt install bind9
+
+//check if BIND9 is working
+nslookup google.com 127.0.0.1
+
+//The answer will be something like this:
+Server:         127.0.0.1
+Address:        127.0.0.1#53
+
+Non-authoritative answer:
+Name:   google.com
+Address: 172.217.170.110
+Name:   google.com
+Address: 2c0f:fb50:4002:801::200e
+
+//from now on, JunosOS should be able to use Linux DNS server to resolve names
+root@CE1# run ping www.bbc.co.uk    
+PING uk.www.bbc.co.uk.pri.bbc.co.uk (212.58.233.254): 56 data bytes
+64 bytes from 212.58.233.254: icmp_seq=0 ttl=48 time=163.990 ms
+64 bytes from 212.58.233.254: icmp_seq=1 ttl=48 time=164.233 ms
+
+to check:
+https://www.juniper.net/documentation/us/en/software/junos/junos-getting-started/topics/example/router-name-domain-name-ip-address-system-id-configuring.html
+//configuring unique device's identity in the network-ntp
