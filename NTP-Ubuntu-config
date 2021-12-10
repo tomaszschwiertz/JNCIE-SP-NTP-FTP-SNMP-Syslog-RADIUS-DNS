@@ -1,0 +1,50 @@
+//NTP config
+https://ubuntu.com/server/docs/network-ntp
+
+sudo -i
+sudo apt install chrony
+
+nano /etc/chrony/chrony.conf
+//remove the existing ubuntu NTP servers and add the following (closer to S1 server location)
+server 0.africa.pool.ntp.org iburst
+server 1.africa.pool.ntp.org iburst
+server 2.africa.pool.ntp.org iburst
+server 3.africa.pool.ntp.org iburst
+
+//save the file and restart chrony
+
+systemctl restart chrony.service
+
+//by default, chronyd operates purely as an NTP client.
+//If the allow directive is used, chronyd will be both a client of its servers, and a server to other clients.
+"allow all" - this for allows access by any node (IPv4 or IPv6)
+//add it to the /etc/chrony/chrony.conf file
+
+root@base:~# egrep allow /etc/chrony/chrony.conf
+allow all
+
+//restart the NTP service
+sudo service ntp restart
+
+//add MD5 hash key to 
+root@base:/etc/chrony# nano chrony.keys
+//add the following entry to the file chrony.keys
+10 MD5 workbook
+
+//generate MD5 hash
+root@base:/etc/chrony# chronyc keygen 10 MD5
+10 MD5 HEX:FDCDCBC30F1D29B44C0153E338988F644471CFE9
+
+//restart chronyc
+systemctl restart chrony
+
+
+Ensure that all your routers synchronize their time with the NTP server S1. Configure the
+devices to synchronize time with the S1 at boot time. Ensure that all the NTP exchanges are
+authenticated using MD5 with the password workbook.
+
+
+
+root@CE1# set system ntp authentication-key 10 type md5 
+root@CE1# set system ntp authentication-key 10 value workbook
+root@CE1# set system ntp trusted-key [ 10 15 ] 
