@@ -1,0 +1,79 @@
+//tshooting tacacs authentication problems
+
+ops@TACACS# run monitor traffic interface ge-0/0/4.0 matching "port tacacs"
+verbose output suppressed, use <detail> or <extensive> for full protocol decode
+Address resolution is ON. Use <no-resolve> to avoid any reverse lookup delay.
+Address resolution timeout is 4s.
+Listening on ge-0/0/4.0, capture size 96 bytes
+
+Reverse lookup for 41.60.225.170 failed (check DNS reachability).
+Other reverse lookup failures will not be reported.
+Use <no-resolve> to avoid reverse lookups on IP addresses.
+
+00:12:24.150294 Out IP truncated-ip - 4 bytes missing! 41.60.225.170.50132 > 41.60.225.168.tacacs: S 2018104487:2018104487(0) win 65535 <mss 1460,nop,wscale 1,nop,nop,timestamp 2320764601 0,[|tcp]>
+00:12:24.152559  In IP 41.60.225.168.tacacs > 41.60.225.170.50132: S 793896946:793896946(0) ack 2018104488 win 28960 <mss 1460,sackOK,timestamp 1475089241 2320764601,nop,wscale 7>
+00:12:24.152605 Out IP 41.60.225.170.50132 > 41.60.225.168.tacacs: . ack 1 win 33304 <nop,nop,timestamp 2320764603 1475089241>
+00:12:24.152675 Out IP truncated-ip - 140 bytes missing! 41.60.225.170.50132 > 41.60.225.168.tacacs: P 1:149(148) ack 1 win 33304 <nop,nop,timestamp 2320764603 1475089241>
+00:12:24.154497  In IP 41.60.225.168.tacacs > 41.60.225.170.50132: . ack 149 win 235 <nop,nop,timestamp 1475089243 2320764603>
+00:12:24.155105  In IP 41.60.225.168.tacacs > 41.60.225.170.50132: P 1:18(17) ack 149 win 235 <nop,nop,timestamp 1475089243 2320764603>
+00:12:24.155111  In IP 41.60.225.168.tacacs > 41.60.225.170.50132: F 18:18(0) ack 149 win 235 <nop,nop,timestamp 1475089243 2320764603>
+00:12:24.155144 Out IP 41.60.225.170.50132 > 41.60.225.168.tacacs: . ack 19 win 33295 <nop,nop,timestamp 2320764606 1475089243>
+00:12:24.155211 Out IP 41.60.225.170.50132 > 41.60.225.168.tacacs: F 149:149(0) ack 19 win 33304 <nop,nop,timestamp 2320764606 1475089243>
+00:12:24.157028  In IP 41.60.225.168.tacacs > 41.60.225.170.50132: . ack 150 win 235 <nop,nop,timestamp 1475089245 2320764606>
+00:12:29.156914 Out IP truncated-ip - 4 bytes missing! 41.60.225.170.62963 > 41.60.225.168.tacacs: S 1029995446:1029995446(0) win 65535 <mss 1460,nop,wscale 1,nop,nop,timestamp 2320769607 0,[|tcp]>
+00:12:29.159143  In IP 41.60.225.168.tacacs > 41.60.225.170.62963: S 417568051:417568051(0) ack 1029995447 win 28960 <mss 1460,sackOK,timestamp 1475094247 2320769607,nop,wscale 7>
+00:12:29.159187 Out IP 41.60.225.170.62963 > 41.60.225.168.tacacs: . ack 1 win 33304 <nop,nop,timestamp 2320769610 1475094247>
+00:12:29.159246 Out IP truncated-ip - 107 bytes missing! 41.60.225.170.62963 > 41.60.225.168.tacacs: P 1:116(115) ack 1 win 33304 <nop,nop,timestamp 2320769610 1475094247>
+//this is a working tacacs session (user issuing a show confoguration command)
+
+
+cd /var/log
+cat tac_plus.acct
+...
+Jan  9 00:09:07 41.60.225.170   tschwiertz      0       2.103.6.112     start   task_id=1       service=shell   session_pid = 50624     cmd=login
+Jan  9 00:09:22 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=2       service=shell   session_pid = 50624     cmd=show log tacacs_plus <cr>
+Jan  9 00:10:57 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=3       service=shell   session_pid = 50624     cmd=show configuration <cr>
+...
+//now let's dissable accounting on JunosOS
+Jan  9 00:14:47 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=8       service=shell   session_pid = 50624     cmd=show | display set <cr>
+Jan  9 00:14:57 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=9       service=shell   session_pid = 50624     cmd=delete system accounting <cr>
+Jan  9 00:14:57 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=10      service=shell   session_pid = 50624     cmd=delete: [system accounting] <cr>
+Jan  9 00:15:02 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=11      service=shell   session_pid = 50624     cmd=show | compare <cr>
+Jan  9 00:15:02 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=12      service=shell   session_pid = 50624     cmd=commit <cr>
+root@base:/var/log#
+
+//from now on - no activity is being logged (no config changes, no login attempts)
+
+cat tac_plus.acct
+...
+Jan  9 00:14:57 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=10      service=shell   session_pid = 50624     cmd=delete: [system accounting] <cr>
+Jan  9 00:15:02 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=11      service=shell   session_pid = 50624     cmd=show | compare <cr>
+Jan  9 00:15:02 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=12      service=shell   session_pid = 50624     cmd=commit <cr>
+root@base:/var/log#
+root@base:/var/log#
+root@base:/var/log# timedatectl
+                      Local time: Sun 2022-01-09 00:19:12 UTC
+
+
+
+//tested debug/traceoptions
+
+//traceoptions
+ops@TACACS# show | compare
+[edit system processes]
++    general-authentication-service {
++        traceoptions {
++            file tacacs_plus size 100k files 3 world-readable;
++            filter {
++                user {
++                    tschwiertz;
++                }
++            }
++            flag all;
++        }
++    }
+//doesn't show anything, just
+tschwiertz@TACACS# run show log tacacs_plus
+...
+Jan  9 00:23:19.477432 ../../../../../../../src/junos/usr.sbin/authd/plugin/policy-control-jsrc/authd_jsrc_engine.cc:398: CONNECT FAIL CALLBACK
+Jan  9 00:23:21.478612 ../../../../../../../src/junos/usr.sbin/authd/plugin/policy-control-jsrc/authd_jsrc_engine.cc:398: CONNECT FAIL CALLBACK
