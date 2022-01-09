@@ -1,0 +1,307 @@
+TACACS+ on Ubuntu 14
+
+https://blog.marquis.co/configuring-tacacs-server-on-ubuntu-14-04lts/
+sudo apt-get install tacacs+
+
+//show us the location of the configuration file and if the process is running
+root@base:~# ps -ef | grep tac_plus
+root     17490     1  0 01:34 ?        00:00:00 /usr/sbin/tac_plus -C /etc/tacacs+/tac_plus.conf
+root     19594 17005  0 01:38 pts/0    00:00:00 grep --color=auto tac_plus
+
+//back-up the original file to refer back to if there is any issues
+sudo cp /etc/tacacs+/tac_plus.conf /etc/tacacs+/tac_plus.conf.old
+//we will use a simpler config file
+
+//Accounting
+//Firstly we’ll need to set the file that the accounting information will be written to.
+//By default this is /var/log/tac_plus.acct, however you can have this file where you like if you don’t want you use the default file and path.
+
+//You have to create this file yourself. This can be done by running the command:
+sudo touch /var/log/tac_plus.acct
+
+//the file is referenced in the tac_plus.conf already (you just need to create it)
+*accounting file = /var/log/tac_plus.acct*
+
+
+//Secret Key
+//The Server and Client need to have a matching key so the AAA packets can be encrypted.
+//This key can be anything you wish however, if you’re going to have a key with white-space, key-words, or special characters,
+//you’ll need to use quotation marks
+
+//the key is referenced in the tac_plus.conf already (you just need to change it)
+*key = testing123*
+
+
+//Users
+//You’ll need to define the users that will have access to the device.
+//Each user needs to be associated to a group and have their password defined.
+//The password has to be set as either a MD5 or DES hash. By using tac_pwd use can get your hashed output:
+root@base:/var/log# tac_pwd
+Password to be encrypted: lab123
+MWArlmIgREP6s
+
+//There is an additional stanza service = junos-exec that defines an additional group.
+//This is Juniper specific and I’ll explain this later. I created two users:
+//tschwiertz; will have permission to do anything and second user
+//test; that will only have Read-Only access.
+//Both have the same password (generated from tac_pwd. Usernames ARE case sensitive.
+
+# We also can define local users and specify a file where data is stored.
+# That file may be filled using tac_pwd
+user = tschwiertz {
+    name = "Tomasz Schwiertz"
+    member = admin
+    login = des MWArlmIgREP6s
+		service = junos-exec {
+			local-user-name = remote-admin
+	}
+}
+
+user = test {
+    name = "Test User"
+    member = read-only
+    login =  des MWArlmIgREP6s
+        service = junos-exec {
+            local-user-name = remote-read-only
+               }
+}
+
+//the above goes into the tac_plus file
+
+
+//Groups
+//As you can guess, groups are where you define the level of access and what commands will be used by the group.
+//The commands, for my example, are used to define actions that are largely accepted by most vendors with the expectation of Juniper
+//(from my knowledge but correct me if I’m wrong), although I wont be confirming the configuration works in this post.
+//I have checked with a Cisco device and they worked as expected.
+
+//We have a few parameters that are important remember:
+//default service: defines the default permission that the user will have. By default, if this statement isn’t used or left blank, it’s denied.
+//Meaning that each permitted command users of this group will have to be listed. If you want the default permission to allow, then the
+//statement permit is needed
+
+
+//service: define services which the group is authorised to execute, these could be commands that the group is authorised to execute.
+//Authorisation must be configured on both the client and the daemon to operate correctly.
+
+//cmd: This is where you list a command and set an action, it will be either be a permit or deny.
+//Additionally by having the .* this means that any command after the first word is affected. i.e my example below, all
+//show commands will be permitted
+
+//In my example I have two groups, admin and read-only, the admin group will have full access permitted and the read-only group,
+//as the name suggests, will have read-only access and will be denied from any configuration, clear or restart commands.
+
+# We can also specify rules valid per group of users.
+group = admin {
+	default service = permit
+	service = exec {
+		priv-lvl = 15
+		}
+	}
+
+group = read-only {
+	service = exec {
+		priv-lvl = 15
+		}
+	cmd = show {
+		permit .*
+		}
+	cmd = write {
+		permit term
+		}
+	cmd = dir {
+		permit .*
+		}
+	cmd = admin {
+		permit .*
+		}
+	cmd = terminal {
+		permit .*
+		}
+	cmd = more {
+		permit .*
+		}
+	cmd = exit {
+		permit .*
+		}
+	cmd = logout {
+		permit .*
+		}
+}
+
+//the above goes into the tac_plus file
+
+//verify if the configuration is correct:
+service tacacs_plus check
+...
+ * Checking TACACS+ authentication daemon configuration files successful tacacs+ //nice!
+ 
+//Additional commands that will be useful to remember:
+service tacacs_plus check
+service tacacs_plus status
+service tacacs_plus stop
+service tacacs_plus start
+service tacacs_plus restart
+
+//there’s a Juniper Specific stanza in tac_plus.conf file
+//When authenticating users against a TACACS+ server on juniper devices and you’ll need to apply
+//Juniper Networks Vendor-Specific TACACS+ Attributes.
+https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/topic-map/user-access-tacacs-authentication.html#id-juniper-networks-vendor-specific-tacacs-attributes
+
+//These attributes can be either:
+
+//1). Specified in the tac_plus.conf file by using regular expressions to list all the commands that the user has permitted or denied.
+//A user will need to be created on the device (JunosOS) with that user (xxx) being referred under the local-user-name statement.
+//The stanza would look something:
+
+service = junos-exec {
+	local-user-name = xxx
+	allow-commands =  .*
+	allow-configurations = .*
+	deny-commands = 
+	deny-configuration = 
+	user-permissions = 
+	}
+
+	
+//the above goes into the tac_plus file
+
+//2). Configure a class that has states all the permitted or denied permissions, this class will be linked to a user.
+//Both need to be configured on the device (JunosOS). Once this has been created you’ll need to refer, said user, under the local-user-name
+
+[sample config from junos device]
+
+//The Junos OS retrieves these attributes through an authorization request of the TACACS+ server after authenticating a user.
+//For my example, I went with the latter. Now we’ll jump onto the SRX220 and get that sorted with TACACS+ AAA configuration.
+
+
+//Juniper Configuration
+//single-connection: this means that instead of multiple TCP sessions connecting to the device from a server, a single session is maintained between them
+//best practice: an authentication order should be set so that if there was an issue or loss of connectivity to the TACACS+ server,
+//you’ll be able to fall back to locally defined users.
+//source-address: what address will be used by JunosOS to communicate with TACACS+ Server
+
+authentication-order [ tacplus password ];
+tacplus-server {
+    10.1.0.148 {
+        secret "$9$iHfz9Cu1Eyp0yKWxwsZUjHP5z36AuO"; ## SECRET-DATA //testing123
+        single-connection;
+        source-address 10.1.0.158;
+    }
+}
+
+//With the TACACS+ server we’re able log different events that take place on the device and get those commands sent to the server.
+//From my experience the accounting events that you would most want logged are logins, configuration changes and interactive commands.
+//This is set under system accounting stanza
+
+accounting {
+    events [ login change-log interactive-commands ];
+    destination {
+        tacplus;
+    }
+}
+
+//Next, under the system login stanza, you need to create a class that has a list of permission available to the user(s)
+//that are going to be associated to it. The user(s) are what are used in the tac_plus.conf file.
+//In my example I created two classes, one with all permission super-user-local and the other user with read-only and
+//basic troubleshooting options (ie ping, traceroute, telnet etc) read-only-user-local. These associated this classes
+//with 2 users remote-admin and remote-read-only
+
+login {
+    class read-only-user-local {
+        permissions [ network view view-configuration ];
+    }
+    class super-user-local {
+        permissions all;
+    }
+    user remote-admin {
+        full-name "TACACS User";
+        uid 2009;
+        class super-user-local;
+    }
+    user remote-read-only {
+        full-name "TACACS read-only user";
+        uid 2011;
+        class read-only-user-local;
+    }
+}
+
+
+//verification
+//As you can see below I had no problem with user tschwiertz. However, when I logged in with the "test" user I wasn’t able to
+//enter the configuration mode as the permission wasn’t granted, and for that user the command isn’t even recognized.
+//I ran a show command and you will see that none of the passwords are shown. Again this is due to the permission level granted.
+
+
+//tschwiertz user
+root@base:~# ssh -l tschwiertz 41.60.225.170
+ssh: connect to host 41.60.225.170 port 22000: Connection refused
+root@base:~# ssh -l tschwiertz 41.60.225.170 -p 22
+Password:
+--- JUNOS 20.2B1.2 Kernel 64-bit  JNPR-11.0-20200402.035901__ci_f
+At least one package installed on this device has limited support.
+Run 'file show /etc/notices/unsupported.txt' for details.
+tschwiertz@TACACS> configure
+Entering configuration mode
+
+[edit]
+tschwiertz@TACACS# set interfaces ge-0/0/5 description "This is a test"
+
+[edit]
+tschwiertz@TACACS# commit
+commit complete
+
+//test user
+root@base:~# ssh -l test 41.60.225.170 -p 22
+Password:
+--- JUNOS 20.2B1.2 Kernel 64-bit  JNPR-11.0-20200402.035901__ci_f
+At least one package installed on this device has limited support.
+Run 'file show /etc/notices/unsupported.txt' for details.
+test@TACACS> conf
+             ^
+unknown command.
+test@TACACS> configure
+             ^
+unknown command.
+
+test@TACACS> show configuration system
+host-name TACACS;
+root-authentication {
+    encrypted-password /* SECRET-DATA */; ## SECRET-DATA
+}
+
+//If we check the /var/log/tac_plus.acct file we’ll be able to see all the permitted commands by each user.
+//This is additional confirmation that the users have successfully authenticated against the TACACS+ server and their
+//related permissions authorised to the device.
+
+Jan  9 19:54:48 41.60.225.170   tschwiertz      1       2.103.6.112     start   task_id=1       service=shell   session_pid = 68618     cmd=login
+Jan  9 19:54:58 41.60.225.170   tschwiertz      1       2.103.6.112     stop    task_id=2       service=shell   session_pid = 68618     cmd=show cli authorization <cr>
+Jan  9 19:55:18 41.60.225.170   tschwiertz      0       2.103.6.112     stop    task_id=17      service=shell   session_pid = 67774     cmd=show system <cr>
+Jan  9 19:59:08 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=2       service=shell   session_pid = 68654     cmd=configure <cr>
+Jan  9 19:59:13 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=3       service=shell   session_pid = 68654     cmd=set: [interfaces ge-0/0/5 description] <unconfigured> -> "This is a test"<cr>
+Jan  9 19:59:13 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=4       service=shell   session_pid = 68654     cmd=set interfaces ge-0/0/5 description "This is a test" <cr>
+Jan  9 19:59:13 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=5       service=shell   session_pid = 68654     cmd=commit <cr>
+Jan  9 19:59:53 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=6       service=shell   session_pid = 68654     cmd=exit <cr>
+Jan  9 19:59:53 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=7       service=shell   session_pid = 68654     cmd=exit <cr>
+Jan  9 19:59:53 41.60.225.170   tschwiertz      2       41.60.225.168   stop    task_id=1       service=shell   session_pid = 68654     elapsed_time=57 cmd=logout
+Jan  9 20:00:08 41.60.225.170   test    2       41.60.225.168   start   task_id=1       service=shell   session_pid = 68710     cmd=login
+Jan  9 20:00:23 41.60.225.170   test    2       41.60.225.168   stop    task_id=2       service=shell   session_pid = 68710     cmd=show configuration system <cr>
+Jan  9 20:01:28 41.60.225.170   test    2       41.60.225.168   stop    task_id=3       service=shell   session_pid = 68710     cmd=exit <cr>
+Jan  9 20:01:28 41.60.225.170   test    2       41.60.225.168   stop    task_id=1       service=shell   session_pid = 68710     elapsed_time=80 cmd=logout
+root@base:/var/log#
+
+//once logged in, you can verify what permissions/class have you ben granted:
+
+tschwiertz@TACACS# run show cli authorization
+Current user: 'remote' login: 'tschwiertz' class 'super-user-local'
+Permissions:
+    access      -- Can view access configuration
+    access-control-- Can modify access configuration
+...
+
+test@TACACS> show cli authorization
+Current user: 'remote-read-only' login: 'test' class 'read-only-user-local'
+Permissions:
+    network     -- Can access the network
+    view        -- Can view current values and statistics
+...
