@@ -181,7 +181,22 @@ service = junos-exec {
 //you’ll be able to fall back to locally defined users.
 //source-address: what address will be used by JunosOS to communicate with TACACS+ Server
 
-authentication-order [ tacplus password ]; //What happens now is the system tries to authenticate the user using TACACS+, and if denied - then moves on to the local database
+authentication-order [ tacplus password ];
+//What happens now is the system tries to authenticate the user using TACACS+, and if denied - then moves on to the local database
+
+**********************************************************************************************************************
+*//A word about the order of authentication:
+*
+*//set system authentication-order radius
+*//use the external RADIUS server for all authentication
+*//ONLY if the RADIUS server is not there (i.e. no response) - consult the local DB
+*//if the RADIUS server replies - nothing else gets consulted
+*
+*//set system authentication-order [ radius password ]
+*//if the RADIUS server is not there (i.e. no response) - consult the local DB
+*//if the RADIUS server replies with a deny - move to the second authentication method - consult the local DB
+**********************************************************************************************************************
+
 
 We don’t really want to leave it like this
 tacplus-server {
